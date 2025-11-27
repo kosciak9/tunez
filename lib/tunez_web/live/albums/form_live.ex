@@ -1,9 +1,15 @@
 defmodule TunezWeb.Albums.FormLive do
   use TunezWeb, :live_view
 
+  on_mount {TunezWeb.LiveUserAuth, role_required: :editor}
+
   def mount(%{"id" => album_id}, _session, socket) do
-    album = Tunez.Music.get_album_by_id!(album_id, load: [:artist])
-    form = Tunez.Music.form_to_update_album(album)
+    album =
+      Tunez.Music.get_album_by_id!(album_id, load: [:artist], actor: socket.assigns.current_user)
+
+    form =
+      Tunez.Music.form_to_update_album(album, actor: socket.assigns.current_user)
+      |> AshPhoenix.Form.ensure_can_submit!()
 
     socket =
       socket
@@ -15,8 +21,11 @@ defmodule TunezWeb.Albums.FormLive do
   end
 
   def mount(%{"artist_id" => artist_id}, _session, socket) do
-    artist = Tunez.Music.get_artist_by_id!(artist_id)
-    form = Tunez.Music.form_to_create_album(artist.id)
+    artist = Tunez.Music.get_artist_by_id!(artist_id, actor: socket.assigns.current_user)
+
+    form =
+      Tunez.Music.form_to_create_album(artist.id, actor: socket.assigns.current_user)
+      |> AshPhoenix.Form.ensure_can_submit!()
 
     socket = socket |> assign(:form, to_form(form))
 
@@ -120,7 +129,10 @@ defmodule TunezWeb.Albums.FormLive do
   end
 
   def handle_event("save", %{"form" => form_data}, socket) do
-    case AshPhoenix.Form.submit(socket.assigns.form, params: form_data) do
+    case AshPhoenix.Form.submit(socket.assigns.form,
+           params: form_data,
+           actor: socket.assigns.current_user
+         ) do
       {:ok, album} ->
         socket =
           socket
